@@ -20,7 +20,7 @@ namespace CreationModelPlugin
 
             List<Wall> walls = CreateWalls(doc, level1, level2);
 
-            AddDoor(doc, level1, walls[0]);
+            
 
             return Result.Succeeded;
         }
@@ -71,9 +71,36 @@ namespace CreationModelPlugin
                 wall.get_Parameter(BuiltInParameter.WALL_HEIGHT_TYPE).Set(level2.Id);
             }
 
+            AddDoor(doc, level1, walls[0]);
+
+            for (int i = 1; i < 4; i++)
+            {
+                AddWindow(doc,level1, walls[i]);
+            }
+
             transaction.Commit();
 
             return walls;
+
+        }
+
+        private void AddWindow(Document doc,Level level1, Wall wall)
+        {
+            FamilySymbol windowType = new FilteredElementCollector(doc)
+               .OfClass(typeof(FamilySymbol))
+               .OfCategory(BuiltInCategory.OST_Windows)
+               .OfType<FamilySymbol>()
+               .Where(x => x.Name.Equals("0915 x 1220 мм"))
+               .Where(x => x.FamilyName.Equals("Фиксированные"))
+               .FirstOrDefault();
+            LocationCurve hostCurve = wall.Location as LocationCurve;
+            XYZ point1 = hostCurve.Curve.GetEndPoint(0);
+            XYZ point2 = hostCurve.Curve.GetEndPoint(1);
+            XYZ point = (point1 + point2) / 2;
+            if (!windowType.IsActive)
+                windowType.Activate();
+            FamilyInstance window = doc.Create.NewFamilyInstance(point, windowType,wall,level1,Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+            window.get_Parameter(BuiltInParameter.INSTANCE_SILL_HEIGHT_PARAM).Set(UnitUtils.ConvertToInternalUnits(800, UnitTypeId.Millimeters));
 
         }
 
