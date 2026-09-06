@@ -1,4 +1,5 @@
-﻿using Autodesk.Revit.Attributes;
+﻿using Autodesk.Revit.ApplicationServices;
+using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using System;
@@ -19,10 +20,48 @@ namespace CreationModelPlugin
             Level level2 = GetLevelByName(doc, "Уровень 2");
 
             List<Wall> walls = CreateWalls(doc, level1, level2);
-
+                    
             
-
             return Result.Succeeded;
+        }
+
+        private void AddRoof(Document doc, Level level2, List<Wall> walls)
+        {
+            RoofType roofType = new FilteredElementCollector(doc)
+                .OfClass(typeof(RoofType))
+                .OfType<RoofType>()
+                .Where(x => x.Name.Equals("Типовой - 400мм"))
+                .Where(x => x.FamilyName.Equals("Базовая крыша"))
+                .FirstOrDefault();
+            double wallWidth = walls[0].Width;
+            double dt = wallWidth / 2;
+
+            LocationCurve curveX = walls[0].Location as LocationCurve;
+            XYZ lengthRoofStart = curveX.Curve.GetEndPoint(0);
+            XYZ lengthRoofEnd = curveX.Curve.GetEndPoint(1);
+
+            LocationCurve curveY = walls[1].Location as LocationCurve;
+            XYZ widthRoofStart = curveY.Curve.GetEndPoint(0);
+            XYZ widthRoofEnd = curveY.Curve.GetEndPoint(1);
+
+            double roofHeight = UnitUtils.ConvertToInternalUnits(2000, UnitTypeId.Millimeters);
+
+            ReferencePlane refPlane = doc.Create.NewReferencePlane(
+                new XYZ(0, 0, 0), new XYZ(0, 0, 1), new XYZ(0, 1, 0), doc.ActiveView);
+
+            Application application= doc.Application;
+            CurveArray profile = application.Create.NewCurveArray();
+            XYZ start = new XYZ(0, widthRoofStart.Y - dt, level2.Elevation);
+            XYZ mid = new XYZ(0, 0, level2.Elevation + roofHeight);
+            XYZ end = new XYZ(0, widthRoofEnd.Y + dt, level2.Elevation);
+            profile.Append(Line.CreateBound(start, mid));
+            profile.Append(Line.CreateBound(mid, end));
+
+            double extrusionStart = lengthRoofStart.X - dt;
+            double extrusionEnd = lengthRoofEnd.X + dt;
+
+            ExtrusionRoof extrusionRoof = doc.Create.NewExtrusionRoof(profile, refPlane, level2, roofType, extrusionStart, extrusionEnd);
+
         }
 
         private void AddDoor(Document doc, Level level1, Wall wall)
@@ -77,6 +116,8 @@ namespace CreationModelPlugin
             {
                 AddWindow(doc,level1, walls[i]);
             }
+
+            AddRoof(doc, level2, walls);
 
             transaction.Commit();
 
